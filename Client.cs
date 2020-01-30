@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -40,6 +41,12 @@ namespace CoinsPaid.V2 {
 		/// Simplify request type
 		/// </summary>
 		public class Request : Dictionary<string, string> {
+			public readonly string Path;
+			public readonly HttpStatusCode Expected;
+			public Request(string path = default, HttpStatusCode expected = HttpStatusCode.BadRequest) {
+				Path = path;
+				Expected = expected;
+			}
 		}
 
 		/// <summary>
@@ -102,28 +109,49 @@ namespace CoinsPaid.V2 {
 		}
 
 		/// <summary>
+		/// Run POST request and interpret response as specified model
+		/// </summary>
+		/// <typeparam name="T">Reponse model type</typeparam>
+		/// <param name="request">Request object</param>
+		/// <returns>Response model or null on error</returns>
+		async Task<Models.Response<T>> RunRequest<T>(Request request, CancellationToken cancel) {
+			using (HttpClient http = new HttpClient()) {
+				// send request
+				var response = await HTTPHelper.PostRequest<T>(
+					Config.Endpoint + request.Path,
+					http, request, CreateAuthHeaders(request),
+					request.Expected,
+					cancel
+				);
+				// prepare result
+				Models.Response<T> result = new Models.Response<T>(response.Result);
+				if (response.Code != request.Expected) {
+					try {
+						// try parse errors
+						var error = JsonConvert.DeserializeObject<Models.Error>(response.Message);
+						// copy values
+						foreach (var e in error.errors) {
+							result.Errors.Add(e.Key, e.Value);
+						}
+					} catch {
+						result.Errors.Add("message", response.Message);
+					}
+				}
+				return result;
+			}
+		}
+
+		/// <summary>
 		/// Implements /v2/currencies/list
 		/// Get all supported currencies 
 		/// </summary>
 		/// <returns>Supported currencies list or default on error</returns>
-		public async Task<Models.CurrenciesListResponse> CurrenciesList(CancellationToken cancel = default) {
-			// prepare request
-			var request = new Request();
-			// send request
-			using (HttpClient http = new HttpClient()) {
-				var response = await HTTPHelper.PostRequest<Models.CurrenciesListResponse>(
-					Config.Endpoint + "/currencies/list",
-					http, request, CreateAuthHeaders(request),
-					HttpStatusCode.OK,
-					cancel
-				);
-				// check result
-				if (response.Code == HttpStatusCode.OK) {
-					return response.Result;
-				} else {
-					return default;
-				}
-			}
+		public async Task<Models.Response<Models.CurrenciesList>> CurrenciesList(CancellationToken cancel = default) {
+			// run request
+			return await RunRequest<Models.CurrenciesList>(
+				new Request("/currencies/list", HttpStatusCode.OK),
+				cancel
+			);
 		}
 
 		/// <summary>
@@ -134,10 +162,10 @@ namespace CoinsPaid.V2 {
 		/// <param name="from">Filter by currency ISO that exchanges from</param>
 		/// <param name="to">Filter by currency ISO that can be converted to</param>
 		/// <returns>List of currency pairs or default on error</returns>
-		public async Task<Models.CurrenciesPairsResponse> CurrenciesPairs(string from = "", string to = "",
+		public async Task<Models.Response<Models.CurrenciesPairs>> CurrenciesPairs(string from = "", string to = "",
 			CancellationToken cancel = default) {
 			// prepare request
-			var request = new Request();
+			var request = new Request("/currencies/pairs", HttpStatusCode.OK);
 			if (!string.IsNullOrEmpty(from)) {
 				request.Add("currency_from", from);
 			}
@@ -145,20 +173,7 @@ namespace CoinsPaid.V2 {
 				request.Add("currency_to", to);
 			}
 			// send request
-			using (HttpClient http = new HttpClient()) {
-				var response = await HTTPHelper.PostRequest<Models.CurrenciesPairsResponse>(
-					Config.Endpoint + "/currencies/pairs",
-					http, request, CreateAuthHeaders(request),
-					HttpStatusCode.OK,
-					cancel
-				);
-				// check result
-				if (response.Code == HttpStatusCode.OK) {
-					return response.Result;
-				} else {
-					return default;
-				}
-			}
+			return await RunRequest<Models.CurrenciesPairs>(request, cancel);
 		}
 
 		/// <summary>
@@ -166,24 +181,12 @@ namespace CoinsPaid.V2 {
 		/// Get list of all the balances (including zero balances).
 		/// </summary>
 		/// <returns>List of all the balances (including zero balances) or default on error</returns>
-		public async Task<Models.AccountsListResponse> AccountsList(CancellationToken cancel = default) {
-			// prepare request
-			var request = new Request();
+		public async Task<Models.Response<Models.AccountsList>> AccountsList(CancellationToken cancel = default) {
 			// send request
-			using (HttpClient http = new HttpClient()) {
-				var response = await HTTPHelper.PostRequest<Models.AccountsListResponse>(
-					Config.Endpoint + "/accounts/list",
-					http, request, CreateAuthHeaders(request),
-					HttpStatusCode.OK,
-					cancel
-				);
-				// check result
-				if (response.Code == HttpStatusCode.OK) {
-					return response.Result;
-				} else {
-					return default;
-				}
-			}
+			return await RunRequest<Models.AccountsList>(
+				new Request("/accounts/list", HttpStatusCode.OK),
+				cancel
+			);
 		}
 
 		/// <summary>
@@ -194,9 +197,9 @@ namespace CoinsPaid.V2 {
 		/// <param name="currency">ISO of currency to receive funds in</param>
 		/// <param name="convert">Optional ISO of currency to convert funds</param>
 		/// <returns>Address for depositing crypto or default on error</returns>
-		public async Task<Models.AddressesTakeResponse> AddressesTake(string id, string currency, string convert = default, CancellationToken cancel = default) {
+		public async Task<Models.Response<Models.AddressesTake>> AddressesTake(string id, string currency, string convert = default, CancellationToken cancel = default) {
 			// prepare request
-			var request = new Request() {
+			var request = new Request("/addresses/take", HttpStatusCode.Created) {
 				{ "foreign_id", id },
 				{ "currency", currency }
 			};
@@ -204,20 +207,7 @@ namespace CoinsPaid.V2 {
 				request.Add("convert_to", convert);
 			}
 			// send request
-			using (HttpClient http = new HttpClient()) {
-				var response = await HTTPHelper.PostRequest<Models.AddressesTakeResponse>(
-					Config.Endpoint + "/addresses/take",
-					http, request, CreateAuthHeaders(request),
-					HttpStatusCode.Created,
-					cancel
-				);
-				// check result
-				if (response.Code == HttpStatusCode.Created) {
-					return response.Result;
-				} else {
-					return default;
-				}
-			}
+			return await RunRequest<Models.AddressesTake>(request, cancel);
 		}
 
 		/// <summary>
@@ -231,10 +221,10 @@ namespace CoinsPaid.V2 {
 		/// <param name="convert">Optional ISO of currency to convert funds</param>
 		/// <param name="tag">Tag (if it's Ripple or BNB) or memo (if it's Bitshares or EOS)</param>
 		/// <returns>Withdraw state object or null on error</returns>
-		public async Task<Models.WithdrawalCryptoResponse> WithdrawalCrypto(string id, string amount, string currency, string to,
+		public async Task<Models.Response<Models.WithdrawalCrypto>> WithdrawalCrypto(string id, string amount, string currency, string to,
 			string convert = default, string tag = default, CancellationToken cancel = default) {
 			// prepare request
-			var request = new Request() {
+			var request = new Request("/withdrawal/crypto", HttpStatusCode.Created) {
 				{ "foreign_id", id },
 				{ "currency", currency },
 				{ "amount", amount },
@@ -247,20 +237,93 @@ namespace CoinsPaid.V2 {
 				request.Add("tag", tag);
 			}
 			// send request
-			using (HttpClient http = new HttpClient()) {
-				var response = await HTTPHelper.PostRequest<Models.WithdrawalCryptoResponse>(
-					Config.Endpoint + "/withdrawal/crypto",
-					http, request, CreateAuthHeaders(request),
-					HttpStatusCode.Created,
-					cancel
-				);
-				// check result
-				if (response.Code == HttpStatusCode.Created) {
-					return response.Result;
-				} else {
-					return default;
-				}
-			}
+			return await RunRequest<Models.WithdrawalCrypto>(request, cancel);
+		}
+
+		/// <summary>
+		/// Implements /v2/exchange/calculate
+		/// Calculate exchnage by received amount
+		/// </summary>
+		/// <param name="from">Currency ISO for which you want to calculate the exchange rate</param>
+		/// <param name="to">Currency ISO to be exchanged</param>
+		/// <param name="amount">Amount you want to calculate</param>
+		/// <returns>Info about exchange rate or null on error</returns>
+		public async Task<Models.Response<Models.ExchnageCalculate>> ExchnageCalculateByReceived(string from, string to, string amount,
+			CancellationToken cancel = default) {
+			// prepare request
+			var request = new Request("/exchange/calculate", HttpStatusCode.OK) {
+				{ "sender_currency", from },
+				{ "receiver_currency", to },
+				{ "receiver_amount", amount }
+			};
+			// send request
+			return await RunRequest<Models.ExchnageCalculate>(request, cancel);
+		}
+
+		/// <summary>
+		/// Implements /v2/exchange/calculate
+		/// Calculate exchnage by sent amount
+		/// </summary>
+		/// <param name="from">Currency ISO for which you want to calculate the exchange rate</param>
+		/// <param name="to">Currency ISO to be exchanged</param>
+		/// <param name="amount">Amount you want to calculate</param>
+		/// <returns>Info about exchange rate or null on error</returns>
+		public async Task<Models.Response<Models.ExchnageCalculate>> ExchnageCalculateBySent(string from, string to, string amount,
+			CancellationToken cancel = default) {
+			// prepare request
+			var request = new Request("/exchange/calculate", HttpStatusCode.OK) {
+				{ "sender_currency", from },
+				{ "receiver_currency", to },
+				{ "sender_amount", amount }
+			};
+			// send request
+			return await RunRequest<Models.ExchnageCalculate>(request, cancel);
+		}
+
+		/// <summary>
+		/// Implements /v2/exchange/fixed
+		/// Make exchange on a given fixed exchange rate
+		/// </summary>
+		/// <param name="id">Unique foreign ID in your system</param>
+		/// <param name="from">Currency ISO which you want to exchange</param>
+		/// <param name="to">Currency ISO to be exchanged</param>
+		/// <param name="amount">Amount you want to exchange</param>
+		/// <param name="rate">Exchange rate price on which exchange will be placed</param>
+		/// <returns>Exchange state or null on error</returns>
+		public async Task<Models.Response<Models.Exchange>> ExchangeFixed(string id, string from, string to, string amount, string rate,
+			CancellationToken cancel = default) {
+			// prepare request
+			var request = new Request("/exchange/fixed", HttpStatusCode.Created) {
+				{ "sender_currency", from },
+				{ "receiver_currency", to },
+				{ "sender_amount", amount },
+				{ "foreign_id", id },
+				{ "price", rate }
+			};
+			// send request
+			return await RunRequest<Models.Exchange>(request, cancel);
+		}
+
+		/// <summary>
+		/// Implements /v2/exchange/now
+		/// Make exchange without mentioning the price
+		/// </summary>
+		/// <param name="id">Unique foreign ID in your system</param>
+		/// <param name="from">Currency ISO which you want to exchange</param>
+		/// <param name="to">Currency ISO to be exchanged</param>
+		/// <param name="amount">Amount you want to exchange</param>
+		/// <returns>Exchange state or null on error</returns>
+		public async Task<Models.Response<Models.Exchange>> ExchangeNow(string id, string from, string to, string amount,
+			CancellationToken cancel = default) {
+			// prepare request
+			var request = new Request("/exchange/now", HttpStatusCode.Created) {
+				{ "sender_currency", from },
+				{ "receiver_currency", to },
+				{ "sender_amount", amount },
+				{ "foreign_id", id }
+			};
+			// send request
+			return await RunRequest<Models.Exchange>(request, cancel);
 		}
 	}
 }

@@ -9,9 +9,34 @@ namespace CoinsPaid.V2 {
 	/// </summary>
 	public class Models {
 		/// <summary>
-		/// v2/currencies/list response
+		/// API response 
 		/// </summary>
-		public class CurrenciesListResponse {
+		/// <typeparam name="T"></typeparam>
+		public class Response<T> {
+			public readonly T Result;
+			public readonly Dictionary<string, string> Errors = new Dictionary<string, string>();
+			public bool Success {
+				get {
+					return Result != null;
+				}
+			}
+			// CTOR
+			public Response(T result) {
+				Result = result;
+			}
+		};
+
+		/// <summary>
+		/// Error response
+		/// </summary>
+		public class Error {
+			public Dictionary<string, string> errors;
+		}
+
+		/// <summary>
+		/// /v2/currencies/list response
+		/// </summary>
+		public class CurrenciesList {
 			public class Item {
 				public int id {
 					get; set;
@@ -41,9 +66,9 @@ namespace CoinsPaid.V2 {
 		}
 
 		/// <summary>
-		/// v2/currencies/pairs response
+		/// /v2/currencies/pairs response
 		/// </summary>
-		public class CurrenciesPairsResponse {
+		public class CurrenciesPairs {
 			public class CurrencyFrom {
 				public string currency {
 					get; set;
@@ -88,7 +113,7 @@ namespace CoinsPaid.V2 {
 		/// <summary>
 		/// /v2/accounts/list
 		/// </summary>
-		public class AccountsListResponse {
+		public class AccountsList {
 			public class Item {
 				public string currency {
 					get; set;
@@ -108,7 +133,7 @@ namespace CoinsPaid.V2 {
 		/// <summary>
 		/// /v2/addresses/take
 		/// </summary>
-		public class AddressesTakeResponse {
+		public class AddressesTake {
 			public class Data {
 				public int id {
 					get; set;
@@ -137,7 +162,7 @@ namespace CoinsPaid.V2 {
 		/// <summary>
 		/// /v2/withdrawal/crypto
 		/// </summary>
-		public class WithdrawalCryptoResponse {
+		public class WithdrawalCrypto {
 			public class Data {
 				public int id {
 					get; set;
@@ -167,6 +192,92 @@ namespace CoinsPaid.V2 {
 					get; set;
 				}
 			}
+			public Data data {
+				get; set;
+			}
+		}
+
+		/// <summary>
+		/// /v2/exchange/calculate
+		/// </summary>
+		public class ExchnageCalculate {
+			public class Data {
+				public string sender_amount {
+					get; set;
+				}
+				public string sender_currency {
+					get; set;
+				}
+				public string receiver_amount {
+					get; set;
+				}
+				public string receiver_currency {
+					get; set;
+				}
+				public string fee_amount {
+					get; set;
+				}
+				public string fee_currency {
+					get; set;
+				}
+				public string price {
+					get; set;
+				}
+				public int ts_fixed {
+					get; set;
+				}
+				public int ts_release {
+					get; set;
+				}
+				public int fix_period {
+					get; set;
+				}
+			}
+			public Data data {
+				get; set;
+			}
+		}
+
+		/// <summary>
+		/// /v2/exchange/fixed /v2/exchange/now
+		/// </summary>
+		public class Exchange {
+			public class Data {
+				public int id {
+					get; set;
+				}
+				public string foreign_id {
+					get; set;
+				}
+				public string type {
+					get; set;
+				}
+				public string sender_amount {
+					get; set;
+				}
+				public string sender_currency {
+					get; set;
+				}
+				public string receiver_amount {
+					get; set;
+				}
+				public string receiver_currency {
+					get; set;
+				}
+				public string fee_amount {
+					get; set;
+				}
+				public string fee_currency {
+					get; set;
+				}
+				public string price {
+					get; set;
+				}
+				public string status {
+					get; set;
+				}
+			}
+
 			public Data data {
 				get; set;
 			}
