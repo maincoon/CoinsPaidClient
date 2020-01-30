@@ -41,8 +41,21 @@ namespace CoinsPaid.V2 {
 		/// Simplify request type
 		/// </summary>
 		public class Request : Dictionary<string, string> {
+			/// <summary>
+			/// Request path
+			/// </summary>
+			[JsonIgnore]
 			public readonly string Path;
+			/// <summary>
+			/// Expected HTTP result code
+			/// </summary>
+			[JsonIgnore]
 			public readonly HttpStatusCode Expected;
+			/// <summary>
+			/// CTOR
+			/// </summary>
+			/// <param name="path">Request path</param>
+			/// <param name="expected">Expected success HTTP result code</param>
 			public Request(string path = default, HttpStatusCode expected = HttpStatusCode.BadRequest) {
 				Path = path;
 				Expected = expected;
